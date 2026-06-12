@@ -1,0 +1,1669 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { useState, useEffect, useRef, FormEvent } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  Search, 
+  Star, 
+  Heart, 
+  Share2, 
+  X, 
+  Printer, 
+  Plus, 
+  Minus, 
+  Check, 
+  ChevronDown, 
+  MessageSquare, 
+  Sparkles, 
+  Send, 
+  ArrowDown, 
+  Clock, 
+  Flame, 
+  Shield, 
+  Award,
+  Instagram,
+  Facebook,
+  Mail,
+  Youtube,
+  Leaf,
+  Calendar,
+  Ticket
+} from 'lucide-react';
+
+import { 
+  FIREHOUSE_MENU_ITEMS, 
+  HISTORIC_TIMELINE, 
+  INITIAL_DOG_GUESTS, 
+  INITIAL_GUEST_REVIEWS, 
+  AI_CONCEPT_SHORTCUTS,
+  heroImg,
+  dogImg,
+  FirehouseMenuItem,
+  DogGuest,
+  TimelineEvent,
+  GuestReview
+} from './data';
+
+// Creator circular avatar image
+import threeCreatorsImg from './assets/images/three_creators_1781258433216.jpg';
+
+export default function App() {
+  // --- STATE ---
+  const [menuItems, setMenuItems] = useState<FirehouseMenuItem[]>(FIREHOUSE_MENU_ITEMS);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  
+  // Sourdough Loaf / Servings Scaler (defaults to 4 loaves / portions)
+  const [servings, setServings] = useState<number>(4);
+  
+  // Selected single item for focused viewing (defaults to Sourdough)
+  const [selectedItemId, setSelectedItemId] = useState<string>('artisan-sourdough');
+  const activeItem = menuItems.find(item => item.id === selectedItemId) || menuItems[0];
+
+  // Dog Guests / Registry state
+  const [dogGuests, setDogGuests] = useState<DogGuest[]>(() => {
+    const saved = localStorage.getItem('firehouse_dog_guests');
+    return saved ? JSON.parse(saved) : INITIAL_DOG_GUESTS;
+  });
+  const [isAddingDog, setIsAddingDog] = useState(false);
+  const [newDogName, setNewDogName] = useState('');
+  const [newDogBreed, setNewDogBreed] = useState('');
+  const [newDogOwner, setNewDogOwner] = useState('');
+  const [newDogMischief, setNewDogMischief] = useState(5);
+  const [newDogTreat, setNewDogTreat] = useState('Spent-Grain Peanut Butter Slices');
+  const [fedDogs, setFedDogs] = useState<Record<string, boolean>>({});
+
+  // Eco Carbon Savior Travel Calculator state
+  const [travelMode, setTravelMode] = useState<'walking' | 'cycling' | 'tram' | 'ev' | 'petrol'>('walking');
+  const [travelDistance, setTravelDistance] = useState<number>(3); // miles
+  const [carbonSavedGrams, setCarbonSavedGrams] = useState<number>(0);
+
+  // Countdown simulation timers (for timeline events)
+  const [activeTimers, setActiveTimers] = useState<Record<number, { timeLeft: number; originalTime: number; isRunning: boolean }>>({});
+
+  // Booking admissions ticket office state
+  const [bookingDate, setBookingDate] = useState<string>('2026-06-15');
+  const [bookingType, setBookingType] = useState<'sourdough-class' | 'brewery-tasting' | 'vault-tour'>('sourdough-class');
+  const [bookingTickets, setBookingTickets] = useState<number>(2);
+  const [confirmedBooking, setConfirmedBooking] = useState<{ id: string; price: number } | null>(null);
+
+  // Review registry board states
+  const [guestReviews, setGuestReviews] = useState<GuestReview[]>(() => {
+    const saved = localStorage.getItem('firehouse_reviews_v1');
+    return saved ? JSON.parse(saved) : INITIAL_GUEST_REVIEWS;
+  });
+  const [newReviewAuthor, setNewReviewAuthor] = useState('');
+  const [newReviewRating, setNewReviewRating] = useState(5);
+  const [newReviewVisitType, setNewReviewVisitType] = useState<'Bakery' | 'Brewery' | 'Heritage Tour' | 'Dog Visitor'>('Bakery');
+  const [newReviewComment, setNewReviewComment] = useState('');
+  const [reviewSubmitSuccess, setReviewSubmitSuccess] = useState(false);
+
+  // Floating share actions total count state
+  const [shareCount, setShareCount] = useState<number>(127);
+  const [hasShared, setHasShared] = useState<Record<string, boolean>>({});
+
+  // AI assistant chat drawer panel states
+  const [isAiOpen, setIsAiOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState<Array<{ sender: 'user' | 'brewmaster'; text: string }>>([
+    { sender: 'brewmaster', text: 'Cheerio! I am your Firehouse AI Brewmaster & Historian. Ask me anything about our 1903 Victorian station history, how Nellie yeast feeds, or how we bake malt spent grain crackers!' }
+  ]);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+
+  // References for anchor scrolls and chat views
+  const bookingSectionRef = useRef<HTMLDivElement>(null);
+  const reviewsSectionRef = useRef<HTMLDivElement>(null);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // Save states to local storage
+  useEffect(() => {
+    localStorage.setItem('firehouse_dog_guests', JSON.stringify(dogGuests));
+  }, [dogGuests]);
+
+  useEffect(() => {
+    localStorage.setItem('firehouse_reviews_v1', JSON.stringify(guestReviews));
+  }, [guestReviews]);
+
+  // Calculate carbon savings dynamically when travel inputs change
+  useEffect(() => {
+    // Formula relative toPetrol car emission (approx 400g CO2 per mile for average journey & imports logic)
+    const factor: Record<string, number> = {
+      walking: 410, // Grams of CO2 saved per mile vs normal petrol single shopping trip & delivery haulage
+      cycling: 395,
+      tram: 280,
+      ev: 210,
+      petrol: 0
+    };
+    const saved = parseFloat(((factor[travelMode] || 0) * travelDistance).toFixed(1));
+    setCarbonSavedGrams(saved);
+  }, [travelMode, travelDistance]);
+
+  // Handle active timers ticking
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveTimers(prev => {
+        const updated = { ...prev };
+        let hasChanges = false;
+        
+        Object.keys(updated).forEach(stepKey => {
+          const stepNum = parseInt(stepKey);
+          const t = updated[stepNum];
+          if (t && t.isRunning) {
+            hasChanges = true;
+            if (t.timeLeft <= 1) {
+              updated[stepNum] = { ...t, timeLeft: 0, isRunning: false };
+              triggerChimeSound();
+            } else {
+              updated[stepNum] = { ...t, timeLeft: t.timeLeft - 1 };
+            }
+          }
+        });
+        
+        return hasChanges ? updated : prev;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Audio Synthesizer to ring a beautiful vintage fire alarm / baker chime
+  const triggerChimeSound = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc1.type = 'sine';
+      osc2.type = 'triangle';
+
+      // Victorian Bell sound chord projection
+      osc1.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+      osc2.frequency.setValueAtTime(659.25, ctx.currentTime); // E5
+
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+
+      osc1.start();
+      osc2.start();
+      osc1.stop(ctx.currentTime + 1.5);
+      osc2.stop(ctx.currentTime + 1.5);
+    } catch (e) {
+      console.warn("Web Audio chime not permitted by browser autopolicy yet.", e);
+    }
+  };
+
+  // Helper scroll actions
+  const scrollToBookings = () => {
+    bookingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const scrollToReviews = () => {
+    reviewsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  // Triggering shared nodes
+  const triggerShareAction = (socialName: string) => {
+    if (!hasShared[socialName]) {
+      setShareCount(prev => prev + 1);
+      setHasShared(prev => ({ ...prev, [socialName]: true }));
+    }
+  };
+
+  // Filter firehouse menu items based on searches / tab clicks
+  const filteredMenuItems = menuItems.filter(item => {
+    const matchesSearch = 
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.ingredients.some(ing => ing.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      
+    if (selectedCategory === 'all') return matchesSearch;
+    return item.category === selectedCategory && matchesSearch;
+  });
+
+  // Action: Add new dog guest
+  const handleAddNewDog = (e: FormEvent) => {
+    e.preventDefault();
+    if (!newDogName.trim() || !newDogBreed.trim() || !newDogOwner.trim()) return;
+
+    const newDog: DogGuest = {
+      id: 'dog_' + Date.now(),
+      name: newDogName.trim(),
+      breed: newDogBreed.trim(),
+      owner: newDogOwner.trim(),
+      mischiefLevel: newDogMischief,
+      favoriteTreat: newDogTreat,
+      photoUrl: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=200&h=200'
+    };
+
+    setDogGuests(prev => [newDog, ...prev]);
+    setNewDogName('');
+    setNewDogBreed('');
+    setNewDogOwner('');
+    setNewDogMischief(5);
+    setIsAddingDog(false);
+  };
+
+  // Action: Feed cookie to dog with instant hearts confetti feedback
+  const handleFeedDog = (dogId: string) => {
+    setFedDogs(prev => ({ ...prev, [dogId]: true }));
+    triggerChimeSound();
+    setTimeout(() => {
+      setFedDogs(prev => ({ ...prev, [dogId]: false }));
+    }, 2000);
+  };
+
+  // Action: Add local historical review
+  const handleAddReview = (e: FormEvent) => {
+    e.preventDefault();
+    if (!newReviewAuthor.trim() || !newReviewComment.trim()) return;
+
+    const newRev: GuestReview = {
+      id: 'rev_' + Date.now(),
+      author: newReviewAuthor.trim(),
+      rating: newReviewRating,
+      comment: newReviewComment.trim(),
+      date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      visitType: newReviewVisitType
+    };
+
+    setGuestReviews(prev => [newRev, ...prev]);
+    setNewReviewAuthor('');
+    setNewReviewComment('');
+    setNewReviewRating(5);
+    setReviewSubmitSuccess(true);
+    setTimeout(() => setReviewSubmitSuccess(false), 4000);
+  };
+
+  // Action: Ticket admissions checkout helper
+  const handleBookTickets = (e: FormEvent) => {
+    e.preventDefault();
+    const typePrices = {
+      'sourdough-class': 45,
+      'brewery-tasting': 25,
+      'vault-tour': 10
+    };
+    const ticketPrice = typePrices[bookingType] || 10;
+    const total = ticketPrice * bookingTickets;
+    
+    setConfirmedBooking({
+      id: 'TKT-' + Math.floor(100000 + Math.random() * 900000),
+      price: total
+    });
+    triggerChimeSound();
+  };
+
+  // Action: Triggering Timer countdown action
+  const handleToggleTimer = (stepNum: number, durationSec: number) => {
+    setActiveTimers(prev => {
+      const item = prev[stepNum];
+      if (item) {
+        return {
+          ...prev,
+          [stepNum]: { ...item, isRunning: !item.isRunning }
+        };
+      } else {
+        return {
+          ...prev,
+          [stepNum]: { timeLeft: durationSec, originalTime: durationSec, isRunning: true }
+        };
+      }
+    });
+  };
+
+  const handleResetTimer = (stepNum: number) => {
+    setActiveTimers(prev => {
+      const item = prev[stepNum];
+      if (item) {
+        return {
+          ...prev,
+          [stepNum]: { ...item, timeLeft: item.originalTime, isRunning: false }
+        };
+      }
+      return prev;
+    });
+  };
+
+  // AI assistant chat dispatcher
+  const handleChatSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+
+    const userMsg = chatInput.trim();
+    setChatInput('');
+    setChatMessages(prev => [...prev, { sender: 'user', text: userMsg }]);
+    setIsAiLoading(true);
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: userMsg,
+          recipeTitle: activeItem.name
+        }),
+      });
+
+      if (!response.ok) throw new Error('API server error');
+      const data = await response.json();
+      setChatMessages(prev => [...prev, { sender: 'brewmaster', text: data.response }]);
+    } catch (err) {
+      console.error(err);
+      // Local fallback
+      setTimeout(() => {
+        setChatMessages(prev => [...prev, { 
+          sender: 'brewmaster', 
+          text: 'Local Station Lookout: Sourdough Nellie Yeast thrives at 24°C, and spent brewing barley creates excellent high-fiber canine cookies! Ask me anything about our historical timelines.' 
+        }]);
+      }, 800);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const handleShortcutClicked = (text: string) => {
+    setChatInput(text);
+    setIsAiOpen(true);
+  };
+
+  // Compute calculated metrics
+  const totalReviewsCount = guestReviews.length;
+  const averageRating = parseFloat(
+    (guestReviews.reduce((sum, item) => sum + item.rating, 0) / totalReviewsCount).toFixed(1)
+  );
+
+  return (
+    <div className="min-h-screen bg-[#FDFCF9] text-[#2F3A22] font-sans antialiased selection:bg-[#EAEFD2] selection:text-[#4A5D22] relative overflow-x-hidden">
+      
+      {/* ----------------- TOP WHITE TEXT NAVIGATION BAR ----------------- */}
+      <header className="bg-white border-b border-[#F0EFEB] sticky top-0 z-40 transition-shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
+          
+          {/* Categories Navigation */}
+          <nav className="hidden lg:flex items-center gap-6 text-[11px] uppercase tracking-widest font-bold text-[#6D7762]">
+            <button 
+              onClick={() => { setSelectedCategory('all'); setSearchQuery(''); }}
+              className={`hover:text-[#8CB443] transition-colors py-4 border-b-2 cursor-pointer ${selectedCategory === 'all' && !searchQuery ? 'border-[#8CB443] text-[#2F3A22]' : 'border-transparent'}`}
+            >
+              Full Menu
+            </button>
+            <button 
+              onClick={() => { setSelectedCategory('bakery'); setSearchQuery(''); }}
+              className={`hover:text-[#8CB443] transition-colors py-4 border-b-2 cursor-pointer ${selectedCategory === 'bakery' ? 'border-[#8CB443] text-[#2F3A22]' : 'border-transparent'}`}
+            >
+              Bakery Breads
+            </button>
+            <button 
+              onClick={() => { setSelectedCategory('brewery'); setSearchQuery(''); }}
+              className={`hover:text-[#8CB443] transition-colors py-4 border-b-2 cursor-pointer ${selectedCategory === 'brewery' ? 'border-[#8CB443] text-[#2F3A22]' : 'border-transparent'}`}
+            >
+              Brewery Taps
+            </button>
+            <button 
+              onClick={() => { setSelectedCategory('dog-treats'); setSearchQuery(''); }}
+              className={`hover:text-[#8CB443] transition-colors py-4 border-b-2 cursor-pointer ${selectedCategory === 'dog-treats' ? 'border-[#8CB443] text-[#2F3A22]' : 'border-transparent'}`}
+            >
+              Spent-Grain treats
+            </button>
+            <a 
+              href="#heritage-anchor" 
+              className="hover:text-[#8CB443] transition-colors py-4 border-b-2 border-transparent text-[#6D7762]"
+            >
+              Heritage Deck
+            </a>
+            <a 
+              href="#carbon-checker-anchor" 
+              className="hover:text-[#8CB443] transition-colors py-4 border-b-2 border-transparent text-[#6D7762]"
+            >
+              Eco-Carbon Savior
+            </a>
+          </nav>
+
+          {/* Right explore index badge */}
+          <div className="flex items-center gap-4 ml-auto">
+            <button 
+              onClick={() => setIsAiOpen(true)}
+              className="bg-[#3B4A23] hover:bg-[#283318] text-white text-[10px] sm:text-xs uppercase tracking-[0.15em] px-4 py-2 font-bold cursor-pointer transition-all rounded-sm inline-flex items-center gap-1.5 shadow-xs"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
+              <span>Explore more in</span>
+              <strong className="underline decoration-dotted decoration-white/70">The Salford Index</strong>
+            </button>
+          </div>
+
+        </div>
+      </header>
+
+      {/* ----------------- CORE OLIVE GREEN LOGO BANNER (Fills exactly like screenshot) ----------------- */}
+      <section className="bg-[#8FB259] text-white py-11 px-4 sm:px-6 relative overflow-hidden shadow-sm">
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+            
+            {/* Left Brand Identity */}
+            <div className="md:col-span-7 space-y-3">
+              <div 
+                onClick={() => { setSelectedCategory('all'); setSearchQuery(''); }}
+                className="inline-flex items-center gap-4 group cursor-pointer"
+              >
+                {/* Sideways Vertical Logo Panel */}
+                <div className="font-sans text-[10px] uppercase font-black tracking-widest flex flex-col justify-between leading-none border-r border-white/40 pr-3.5 select-none text-white/90">
+                  <span>T</span>
+                  <span>H</span>
+                  <span>E</span>
+                </div>
+                
+                {/* Custom spacing text block with inline decoration */}
+                <div className="font-display text-4xl sm:text-5xl font-extrabold tracking-[0.25em] text-white flex items-center select-none uppercase">
+                  <span>f</span>
+                  {/* Fire Flame Icon replacing I */}
+                  <span className="inline-flex items-center justify-center mx-[1px] transform group-hover:scale-110 group-hover:text-amber-300 transition-all duration-300">
+                    <Flame className="w-8 h-8 text-white fill-white/10" />
+                  </span>
+                  <span>r</span>
+                  <span>e</span>
+                  {/* Little spacing gap */}
+                  <span className="w-2"></span>
+                  <span>h</span>
+                  <span>o</span>
+                  <span>u</span>
+                  <span>s</span>
+                  <span>e</span>
+                </div>
+              </div>
+              
+              <p className="text-[10px] sm:text-xs uppercase tracking-[0.38em] text-white/95 font-black font-sans leading-relaxed">
+                Damn Good Beer and Bakery • Est. 1903 Salford
+              </p>
+            </div>
+
+            {/* Right Interactive Search Input & Social Icons */}
+            <div className="md:col-span-5 flex flex-col items-start md:items-end gap-3.5">
+              
+              {/* White Search Input Container */}
+              <div className="w-full max-w-sm relative">
+                <input 
+                  type="text"
+                  placeholder="Search menus, ingredients, news..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-white text-[#2F3A22] placeholder-[#6D7762]/60 text-sm font-semibold pl-4 pr-11 py-2.5 outline-hidden transition-all focus:ring-2 focus:ring-[#4A5D22] shadow-xs"
+                />
+                <div className="absolute right-3.5 top-3 text-[#6D7762]">
+                  {searchQuery ? (
+                    <button onClick={() => setSearchQuery('')} className="hover:text-red-500 transition-colors">
+                      <X className="w-4 h-4 cursor-pointer" />
+                    </button>
+                  ) : (
+                    <Search className="w-4 h-4" />
+                  )}
+                </div>
+              </div>
+
+              {/* Social Round Media Profiles */}
+              <div className="flex gap-2 items-center">
+                <a href="#facebook" className="w-8 h-8 rounded-full border border-white/30 hover:border-white text-white flex items-center justify-center hover:scale-105 transition-all text-xs hover:bg-white/10">
+                  <Facebook className="w-4 h-4" />
+                </a>
+                <a href="#pinterest" className="w-8 h-8 rounded-full border border-white/30 hover:border-white text-white flex items-center justify-center hover:scale-105 transition-all text-xs font-bold hover:bg-white/10">
+                  P
+                </a>
+                <a href="#instagram" className="w-8 h-8 rounded-full border border-white/30 hover:border-white text-white flex items-center justify-center hover:scale-105 transition-all text-xs hover:bg-white/10">
+                  <Instagram className="w-4 h-4" />
+                </a>
+                <a href="#youtube" className="w-8 h-8 rounded-full border border-white/30 hover:border-white text-white flex items-center justify-center hover:scale-105 transition-all text-xs hover:bg-white/10">
+                  <Youtube className="w-4 h-4" />
+                </a>
+                <a href="#tiktok" className="w-8 h-8 rounded-full border border-white/30 hover:border-white text-white flex items-center justify-center hover:scale-105 transition-all text-[10px] font-black uppercase hover:bg-white/10">
+                  <span>Tk</span>
+                </a>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      {/* ----------------- MAIN LAYOUT SECTION ----------------- */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 relative">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          {/* ================= COLUMN 1: LEFT FLOATING STICKY VIEW (1 col) ================= */}
+          <div className="lg:col-span-1 hidden lg:block">
+            <div className="sticky top-20 flex flex-col items-center gap-5 py-8 bg-white border border-[#EEECE6] rounded-md shadow-2xs">
+              
+              <div className="text-center">
+                <span className="block text-xl font-black text-[#5C703C]">{shareCount}</span>
+                <span className="text-[9px] uppercase tracking-widest text-[#9CA590] font-black">Shares</span>
+              </div>
+
+              <div className="w-8 h-[1px] bg-[#EEECE6]"></div>
+
+              {/* Sparkle Chatbot Panel Summoner */}
+              <button 
+                onClick={() => setIsAiOpen(true)}
+                className="w-10 h-10 rounded-full bg-[#EBF3DD] text-[#5C703C] flex items-center justify-center hover:scale-110 transition-transform cursor-pointer relative group"
+                title="Speak to Station AI"
+              >
+                <Sparkles className="w-5 h-5 animate-pulse" />
+                <span className="absolute left-12 top-2 bg-[#1d2b14] text-white text-[10px] scale-0 group-hover:scale-100 transition-transform origin-left py-1.5 px-3 rounded-xs whitespace-nowrap z-50">Speak to Station AI</span>
+              </button>
+
+              <button 
+                onClick={() => { triggerShareAction('fb'); alert('Shared to Facebook!'); }}
+                className={`w-10 h-10 rounded-full border border-[#EEECE6] hover:border-[#3B5998] flex items-center justify-center hover:scale-110 transition-transform cursor-pointer ${hasShared['fb'] ? 'bg-blue-50 text-blue-600 border-blue-200' : 'text-[#6D7762]'}`}
+              >
+                <Facebook className="w-4.5 h-4.5" />
+              </button>
+
+              <button 
+                onClick={() => { triggerShareAction('pin'); alert('Pinned to Board!'); }}
+                className={`w-10 h-10 rounded-full border border-[#EEECE6] hover:border-[#BD081C] flex items-center justify-center hover:scale-110 transition-transform cursor-pointer font-bold ${hasShared['pin'] ? 'bg-red-50 text-red-600 border-red-200' : 'text-[#6D7762]'}`}
+              >
+                P
+              </button>
+
+              <button 
+                onClick={() => { triggerShareAction('mail'); alert('Email link copy ready!'); }}
+                className={`w-10 h-10 rounded-full border border-[#EEECE6] hover:border-[#E11D48] flex items-center justify-center hover:scale-110 transition-transform cursor-pointer ${hasShared['mail'] ? 'bg-[#FFF1F2] text-[#E11D48] border-[#FECDD3]' : 'text-[#6D7762]'}`}
+              >
+                <Mail className="w-4.5 h-4.5" />
+              </button>
+
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(window.location.href);
+                  triggerChimeSound();
+                  alert("Old Fire Station Salford URL copied to clipboard!");
+                }}
+                className="w-10 h-10 rounded-full border border-[#EEECE6] hover:border-[#2F3A22] flex items-center justify-center hover:scale-110 transition-transform text-[#6D7762] cursor-pointer"
+                title="Copy Station Link"
+              >
+                <Printer className="w-4.5 h-4.5" />
+              </button>
+
+            </div>
+          </div>
+
+          {/* ================= COLUMN 2: CENTER PIECE CONTENT CONTAINER (8 cols) ================= */}
+          <div className="lg:col-span-8 space-y-8">
+            
+            {/* Primary Storyboard Showcase */}
+            <div className="bg-white p-6 sm:p-10 border border-[#EEECE6] rounded-md shadow-3xs space-y-6">
+              
+              {/* Star Indicator & Rating */}
+              <div className="flex items-center gap-1.5">
+                {[...Array(5)].map((_, i) => (
+                  <Star 
+                    key={i} 
+                    className="w-5 h-5 text-[#8FB259] fill-[#8FB259]" 
+                  />
+                ))}
+                <span className="text-xs font-bold text-[#6D7762] ml-2">
+                  {averageRating} of 5 stars ({guestReviews.length} community reviews)
+                </span>
+              </div>
+
+              {/* Headline */}
+              <div className="space-y-2">
+                <h1 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#2F3A22] leading-tight tracking-tight">
+                  Salford Historic Firehouse: Sourdough, Suds & Spent-Grain Cycles
+                </h1>
+                <div className="flex items-center gap-2.5 text-xs text-[#9CA590] uppercase tracking-widest font-black">
+                  <span>Updated on June 12, 2026</span>
+                  <span>•</span>
+                  <span className="text-[#8FB259]">Community Circular Sanctuary</span>
+                </div>
+              </div>
+
+              {/* Large CTA pills */}
+              <div className="flex flex-wrap items-center gap-3.5 pt-1">
+                <button 
+                  onClick={scrollToBookings}
+                  className="bg-[#8FB259] hover:bg-[#7FA24A] text-white text-xs uppercase tracking-widest font-black py-3 px-6 rounded-xs shadow-3xs transition-transform flex items-center gap-2 cursor-pointer"
+                >
+                  <ArrowDown className="w-4 h-4 animate-bounce" />
+                  <span>Jump to Bookings</span>
+                </button>
+                <button 
+                  onClick={scrollToReviews}
+                  className="border border-[#8FB259] text-[#8FB259] hover:bg-[#8FB259] hover:text-white text-xs uppercase tracking-widest font-black py-3 px-6 rounded-xs transition-colors flex items-center gap-2 cursor-pointer"
+                >
+                  <Star className="w-4 h-4 fill-current" />
+                  <span>Leave Review</span>
+                </button>
+              </div>
+
+              {/* Pink Handwritten cursive quote with custom curly SVG arrow (Exact match of screenshot layout) */}
+              <div className="relative pt-6 pb-2 pl-4 flex flex-col sm:flex-row items-start sm:items-center gap-6">
+                
+                {/* Wavy cartoon arrow pointing to sharing block */}
+                <div className="absolute left-[-10px] top-[14px] text-pink-600 hidden sm:block animate-pulse">
+                  <svg width="45" height="42" viewBox="0 0 45 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 36C18.5 32 32.5 28.5 29.5 14M29.5 14L22 17.5M29.5 14L34 20" stroke="#E11D48" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+
+                <p className="font-handwritten text-3xl font-bold text-pink-600 transform -rotate-2 select-none sm:pl-10">
+                  Review, Register, Enjoy!
+                </p>
+
+                {/* Multi Social Square share badges */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs uppercase tracking-wider font-extrabold text-[#9CA590] mr-1">{shareCount} Shares</span>
+                  
+                  {/* Square with ChatGPT style green */}
+                  <button 
+                    onClick={() => { triggerShareAction('ai'); handleShortcutClicked("Tell me how to start my own sourdough engine."); }}
+                    className="w-10 h-10 rounded-sm bg-[#52804A] hover:bg-[#436A3C] text-white flex items-center justify-center transition-transform hover:scale-105 cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 text-emerald-100" />
+                  </button>
+
+                  <button 
+                    onClick={() => { triggerShareAction('facebook'); alert('Posted to Facebook Timeline!'); }}
+                    className="w-10 h-10 rounded-sm bg-[#3B5998] hover:bg-[#344F88] text-white flex items-center justify-center transition-transform hover:scale-105 cursor-pointer"
+                  >
+                    <Facebook className="w-4 h-4" />
+                  </button>
+
+                  <button 
+                    onClick={() => { triggerShareAction('pinterest'); alert('Pinned recipe to board!'); }}
+                    className="w-10 h-10 rounded-sm bg-[#C92228] hover:bg-[#AF1B20] text-white flex items-center justify-center transition-transform hover:scale-105 font-extrabold cursor-pointer text-sm"
+                  >
+                    P
+                  </button>
+
+                  <button 
+                    onClick={() => { triggerShareAction('email'); alert('Copied email newsletter reference!'); }}
+                    className="w-10 h-10 rounded-sm bg-stone-700 hover:bg-stone-800 text-white flex items-center justify-center transition-transform hover:scale-105 cursor-pointer"
+                  >
+                    <Mail className="w-4.5 h-4.5" />
+                  </button>
+
+                  <button 
+                    onClick={() => { triggerShareAction('whatsapp'); alert('Shared link to WhatsApp circle!'); }}
+                    className="w-10 h-10 rounded-sm bg-[#25D366] hover:bg-[#1EAB52] text-white flex items-center justify-center transition-transform hover:scale-105 cursor-pointer font-bold text-sm"
+                  >
+                    W
+                  </button>
+                </div>
+              </div>
+
+              {/* Main Body Article Narrative with dropcap */}
+              <div className="space-y-4 text-justify">
+                <p className="text-[#435232] leading-relaxed text-base sm:text-lg first-letter:font-serif first-letter:text-6xl first-letter:font-extrabold first-letter:text-[#8FB259] first-letter:float-left first-letter:mr-3.5 first-letter:leading-[0.8]">
+                  Adoro Salford! Without this historic, Victorian brick Grade-II fire station originally completed in 1903 in Salford, Greater Manchester, we wouldn't have this wonderful community bakery and bay taproom. The sweet yeast aroma from our signature sourdough and the crisp hoppy head from our tender-bay micro-brewery provide a sophisticated, visual, and highly textured historic environment. Handcrafted in the heart of the community, our spent grains are fed directly to local dogs, our baked loaves avoid massive grocery logistical networks, and every single bus, walking or cycling trip you register saves clear tracking carbon dioxide values!
+                </p>
+                <p className="text-[#435232] leading-relaxed">
+                  Step inside the decommissioned engine bays where horses once stood alert. Today, those original Victorian brick channels house stainless fermentation vessels, wood-fired hearth ovens, and rustic trestle tables where neighbors swap logs. Come for the sourdough, stay for the suds!
+                </p>
+              </div>
+
+              {/* Centerpiece Image of the Fire Station Hero banner */}
+              <div className="overflow-hidden rounded-md border border-[#F0EFEB]">
+                <img 
+                  src={heroImg} 
+                  alt="Historic Old Fire Station Salford" 
+                  className="w-full h-80 object-cover hover:scale-102 transition-transform duration-500"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="bg-[#FAF9F5] p-3 text-center border-t border-[#F0EFEB]">
+                  <span className="font-serif italic text-xs text-[#6D7762]">
+                    The decommissioned engine bays of Salford, beautifully restored into our zero-waste community hub.
+                  </span>
+                </div>
+              </div>
+
+            </div>
+
+            {/* ================= INTERACTIVE WIDGET 1: THE PORTIONS MENU & BAKERS FORMULA SCALER ================= */}
+            <section className="bg-white p-6 sm:p-8 border border-[#EEECE6] rounded-md shadow-3xs space-y-6">
+              
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#EEECE6] pb-4">
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase tracking-widest text-[#8FB259] font-black">Interactive Feature 01</span>
+                  <h3 className="font-serif text-2xl font-bold text-[#2F3A22]">
+                    The Baker & Brewmaster formula sheet
+                  </h3>
+                </div>
+
+                {/* Loaf Servings Scaler buttons */}
+                <div className="flex items-center gap-3 mt-3 sm:mt-0 bg-[#FAF9F5] px-4 py-2 border border-[#EEECE6] rounded-sm">
+                  <span className="text-xs uppercase tracking-wider font-extrabold text-[#6D7762]">Dough Loaves / Portions:</span>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setServings(prev => Math.max(1, prev - 1))}
+                      className="w-8 h-8 rounded-full border border-[#D5D2C9] bg-white hover:bg-[#EEECE6] flex items-center justify-center text-[#2F3A22] font-black cursor-pointer"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="text-sm font-black text-[#2F3A22] w-5 text-center">{servings}</span>
+                    <button 
+                      onClick={() => setServings(prev => Math.min(15, prev + 1))}
+                      className="w-8 h-8 rounded-full border border-[#D5D2C9] bg-white hover:bg-[#EEECE6] flex items-center justify-center text-[#2F3A22] font-black cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Selector items tabs */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {menuItems.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setSelectedItemId(item.id)}
+                    className={`p-3 text-left border rounded-xs transition-all relative ${selectedItemId === item.id ? 'border-[#8FB259] bg-[#FAF9F5] ring-1 ring-[#8FB259]' : 'border-[#EEECE6] hover:bg-[#FAF9F5]'}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs uppercase font-extrabold tracking-wider text-[#6D7762]">{item.category}</span>
+                      <span className="text-xs font-bold text-[#8FB259]">{item.price}</span>
+                    </div>
+                    <h4 className="font-bold text-sm text-[#2F3A22] mt-1 text-ellipsis overflow-hidden whitespace-nowrap">{item.name}</h4>
+                  </button>
+                ))}
+              </div>
+
+              {/* Active scaled material formula card */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 bg-[#FAF9F5] p-5 border border-[#EEECE6] rounded-xs">
+                
+                {/* Product spec summary */}
+                <div className="md:col-span-5 space-y-3">
+                  <div className="h-32 rounded-xs overflow-hidden border border-[#EEECE6]">
+                    <img 
+                      src={activeItem.imgUrl} 
+                      alt={activeItem.name} 
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  <div>
+                    <h4 className="font-serif text-lg font-bold text-[#2F3A22]">{activeItem.name}</h4>
+                    <p className="text-xs text-[#6D7762] mt-1 leading-relaxed">{activeItem.description}</p>
+                  </div>
+                </div>
+
+                {/* Dynamically Scaled Raw Ingredients */}
+                <div className="md:col-span-7 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs uppercase tracking-widest font-black text-[#8FB259]">Custom scaled recipe for {servings} units</span>
+                    <span className="text-[10px] bg-emerald-100 text-[#3B4A23] font-bold px-2 py-0.5 rounded-sm">Circular ingredients</span>
+                  </div>
+                  
+                  <div className="space-y-2 border-t border-[#EEECE6] pt-3">
+                    {activeItem.ingredients.map((ing, k) => (
+                      <div key={k} className="flex items-center justify-between text-xs py-1.5 border-b border-[#F5F4F0] hover:bg-white/40 px-1 rounded-sm">
+                        <span className="font-semibold text-[#435232] flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#8FB259]"></span>
+                          {ing.name}
+                        </span>
+                        <span className="font-mono font-bold text-[#2F3A22]">
+                          {parseFloat((ing.baseAmount * (servings / 4)).toFixed(1))} {ing.unit}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="p-2.5 bg-white border border-[#EEECE6] rounded-xs text-[11px] text-[#6D7762] italic flex items-center gap-2">
+                    <Award className="w-4 h-4 text-[#8FB259]" />
+                    <span>Every single batch is proofed, brewed and served strictly in house!</span>
+                  </div>
+                </div>
+
+              </div>
+
+            </section>
+
+            {/* ================= INTERACTIVE WIDGET 2: RECYCLING SPENT GRAIN & DOG HALL-OF-FAME ================= */}
+            <section className="bg-white p-6 sm:p-8 border border-[#EEECE6] rounded-md shadow-3xs space-y-6">
+              
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#EEECE6] pb-4">
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase tracking-widest text-[#8FB259] font-black">Interactive Feature 02</span>
+                  <h3 className="font-serif text-2xl font-bold text-[#2F3A22]">
+                    Pup companion registry & Spent-Grain snacks
+                  </h3>
+                </div>
+
+                <button
+                  onClick={() => setIsAddingDog(!isAddingDog)}
+                  className="mt-2 sm:mt-0 font-sans text-xs uppercase tracking-wider font-extrabold bg-[#2F3A22] text-[#FDFCF9] hover:bg-[#8FB259] transition-colors py-2 px-4 rounded-xs inline-flex items-center gap-1.5 self-start"
+                >
+                  {isAddingDog ? 'Cancel Register' : 'Register Companion Pup'}
+                </button>
+              </div>
+
+              {/* Form to add companion pet */}
+              {isAddingDog && (
+                <motion.form 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  onSubmit={handleAddNewDog}
+                  className="bg-[#FAF9F5] p-5 border border-[#EEECE6] rounded-xs space-y-3"
+                >
+                  <p className="text-xs text-[#6D7762] font-black uppercase tracking-wider">New guest certificate boarding</p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-[#6D7762]">Companion Pup Name</label>
+                      <input 
+                        required
+                        type="text" 
+                        placeholder="e.g. Charlie"
+                        value={newDogName}
+                        onChange={e => setNewDogName(e.target.value)}
+                        className="w-full bg-white text-xs border border-[#EEECE6] p-2 outline-hidden"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-[#6D7762]">Companion Breed</label>
+                      <input 
+                        required
+                        type="text" 
+                        placeholder="e.g. Spaniel"
+                        value={newDogBreed}
+                        onChange={e => setNewDogBreed(e.target.value)}
+                        className="w-full bg-white text-xs border border-[#EEECE6] p-2 outline-hidden"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-[#6D7762]">Warden / Companion Owner</label>
+                      <input 
+                        required
+                        type="text" 
+                        placeholder="e.g. mehdialamihalimi"
+                        value={newDogOwner}
+                        onChange={e => setNewDogOwner(e.target.value)}
+                        className="w-full bg-white text-xs border border-[#EEECE6] p-2 outline-hidden"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[10px] uppercase font-bold text-[#6D7762]">
+                        <span>Mischief Quotient / Playfulness:</span>
+                        <span className="font-mono text-xs text-[#8FB259] font-black">{newDogMischief}/10</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="1" 
+                        max="10" 
+                        value={newDogMischief}
+                        onChange={e => setNewDogMischief(parseInt(e.target.value))}
+                        className="w-full grid-cols-1 accent-[#8FB259]"
+                      />
+                    </div>
+                    <div className="space-y-1 col-span-1">
+                      <label className="text-[10px] uppercase font-bold text-[#6D7762]">Favorite Spent-Grain Cracker Blend</label>
+                      <select 
+                        value={newDogTreat} 
+                        onChange={e => setNewDogTreat(e.target.value)}
+                        className="w-full bg-white text-xs border border-[#EEECE6] p-2 outline-hidden font-semibold"
+                      >
+                        <option value="Spent-Grain Peanut Butter Slices">Spent-Grain Peanut Butter Slices</option>
+                        <option value="Bakers Spent Malt Crunches">Bakers Spent Malt Crunches</option>
+                        <option value="Oat and Molasses Firehouse Special">Oat and Molasses Firehouse Special</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <button 
+                    type="submit"
+                    className="bg-[#2F3A22] hover:bg-[#8FB259] text-white text-xs uppercase tracking-widest font-black py-2.5 px-6 rounded-xs transition-colors cursor-pointer w-full"
+                  >
+                    Approve & Print Certificate entry
+                  </button>
+                </motion.form>
+              )}
+
+              {/* Dog Hall of Fame grid list */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {dogGuests.map(dog => (
+                  <div 
+                    key={dog.id} 
+                    className="p-4 bg-[#FAF9F5] border border-[#EEECE6] rounded-xs text-center space-y-3 relative group overflow-hidden"
+                  >
+                    {/* Bark trigger feedback ring */}
+                    <AnimatePresence>
+                      {fedDogs[dog.id] && (
+                        <motion.div 
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1.1 }}
+                          exit={{ opacity: 0, scale: 1.3 }}
+                          className="absolute inset-0 bg-emerald-50/90 flex flex-col items-center justify-center z-10"
+                        >
+                          <span className="text-xl">❤️🐾</span>
+                          <span className="text-[10px] font-black font-mono text-[#3B4A23] uppercase">Arf! Yum-Yum!</span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Dog avatar circle frame */}
+                    <div className="w-16 h-16 rounded-full overflow-hidden mx-auto border-2 border-white shadow-sm ring-1 ring-[#EEECE6]">
+                      <img src={dog.photoUrl} alt={dog.name} className="w-full h-full object-cover" />
+                    </div>
+
+                    <div className="space-y-0.5">
+                      <h4 className="font-serif text-base font-extrabold text-[#2F3A22]">{dog.name}</h4>
+                      <p className="text-[10px] text-[#9CA590] uppercase font-black tracking-wider">{dog.breed} • Owner: {dog.owner}</p>
+                    </div>
+
+                    {/* Mischief bar */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[8px] uppercase tracking-widest text-[#6D7762] px-1 font-bold">
+                        <span>Mischief Quotient:</span>
+                        <span>{dog.mischiefLevel}/10</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-stone-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#8FB259]" style={{ width: `${dog.mischiefLevel * 10}%` }}></div>
+                      </div>
+                    </div>
+
+                    <div className="text-[10px] bg-white border border-[#EEECE6] p-1.5 rounded-xs italic text-[#6D7762]">
+                      Loves: {dog.favoriteTreat}
+                    </div>
+
+                    {/* Checkbox Feed task button */}
+                    <button
+                      onClick={() => handleFeedDog(dog.id)}
+                      className="w-full bg-white hover:bg-[#8FB259] hover:text-white border border-[#D5D2C9] hover:border-[#8FB259] text-[10px] uppercase tracking-widest font-black py-2 rounded-xs transition-all cursor-pointer inline-flex items-center justify-center gap-1"
+                    >
+                      <span>Feed biscuit</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+            </section>
+
+            {/* ================= INTERACTIVE WIDGET 3: SALFORD VISITOR ECO CARBON SAVIOR CALCULATOR ================= */}
+            <section id="carbon-checker-anchor" className="bg-[#FAF9F5] p-6 sm:p-8 border border-[#EEECE6] rounded-md shadow-3xs space-y-6">
+              
+              <div className="space-y-1 border-b border-[#EEECE6] pb-4">
+                <span className="text-[10px] uppercase tracking-widest text-[#8FB259] font-black">Interactive Feature 03</span>
+                <h3 className="font-serif text-2xl font-bold text-[#2F3A22]">
+                  Salford Visitor Eco Carbon Savior calculation
+                </h3>
+                <p className="text-xs text-[#6D7762]">
+                  Every trip matters. Calculate how much CO2 emissions you actively prevent by choosing sustainable transport options to visit our circular firehouse bakery compared to retail logistics!
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                
+                {/* Mode Selector and inputs */}
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-black text-[#6D7762] tracking-wider">How did you travel here today?</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setTravelMode('walking')}
+                        className={`py-2 px-3 text-xs font-bold border rounded-xs transition-colors cursor-pointer ${travelMode === 'walking' ? 'bg-[#2F3A22] text-white border-[#2F3A22]' : 'bg-white hover:bg-stone-50 border-[#D5D2C9]'}`}
+                      >
+                        🚶 Walking
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTravelMode('cycling')}
+                        className={`py-2 px-3 text-xs font-bold border rounded-xs transition-colors cursor-pointer ${travelMode === 'cycling' ? 'bg-[#2F3A22] text-white border-[#2F3A22]' : 'bg-white hover:bg-stone-50 border-[#D5D2C9]'}`}
+                      >
+                        🚲 Cycling
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTravelMode('tram')}
+                        className={`py-2 px-3 text-xs font-bold border rounded-xs transition-colors cursor-pointer ${travelMode === 'tram' ? 'bg-[#2F3A22] text-white border-[#2F3A22]' : 'bg-white hover:bg-stone-50 border-[#D5D2C9]'}`}
+                      >
+                        🚊 Metrolink/Tram
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTravelMode('ev')}
+                        className={`py-2 px-3 text-xs font-bold border rounded-xs transition-colors cursor-pointer ${travelMode === 'ev' ? 'bg-[#2F3A22] text-white border-[#2F3A22]' : 'bg-white hover:bg-stone-50 border-[#D5D2C9]'}`}
+                      >
+                        ⚡ EV Drive
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTravelMode('petrol')}
+                        className={`py-2 px-3 text-xs font-bold border rounded-xs transition-colors cursor-pointer ${travelMode === 'petrol' ? 'bg-[#2F3A22] text-white border-[#2F3A22]' : 'bg-white hover:bg-stone-50 border-[#D5D2C9]'}`}
+                      >
+                        🚗 Petrol car
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center text-[10px] uppercase font-black text-[#6D7762] tracking-wider">
+                      <span>Total Distance Traveled:</span>
+                      <span className="font-mono text-sm text-[#8FB259]">{travelDistance} miles</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="1" 
+                      max="30" 
+                      value={travelDistance}
+                      onChange={e => setTravelDistance(parseInt(e.target.value))}
+                      className="w-full accent-[#8FB259]"
+                    />
+                  </div>
+                </div>
+
+                {/* Outputs Display Screen representing values graphically */}
+                <div className="p-5 bg-white border border-[#EEECE6] rounded-xs text-center space-y-4 shadow-3xs relative overflow-hidden">
+                  
+                  <div className="absolute top-2 right-2 flex items-center gap-1 bg-[#EBF3DD] text-[#3B4A23] font-bold text-[8px] uppercase px-2 py-0.5 rounded-sm">
+                    <Leaf className="w-3 height-3 text-[#8FB259]" />
+                    <span>Real-time calculation</span>
+                  </div>
+
+                  <div className="space-y-1 pb-1">
+                    <span className="text-[10px] uppercase tracking-widest text-[#9CA590] font-bold">Total Greenhouse Emissions Stopped</span>
+                    <strong className="block text-4xl font-extrabold text-[#5C703C] animate-pulse">
+                      {carbonSavedGrams === 0 ? '0g' : `${carbonSavedGrams}g CO2`}
+                    </strong>
+                  </div>
+
+                  <div className="text-xs text-[#6D7762] leading-relaxed px-1">
+                    {carbonSavedGrams === 0 ? (
+                      "Selecting driving petrol uses high energy. Change model parameters to green options above to unlock circular badges!"
+                    ) : (
+                      `By walking, cycling or utilizing low emission transport instead of standard petrol distribution logistics, you prevented ${carbonSavedGrams}g of toxic exhaust carbon! That's equivalent to keeping 18 street-light bulbs powered for an hour!`
+                    )}
+                  </div>
+
+                  {/* Badge achievement conditional display */}
+                  <div className="flex items-center justify-center gap-2 pt-2 border-t border-[#F5F4F0]">
+                    {carbonSavedGrams >= 800 ? (
+                      <span className="bg-amber-100 border border-amber-300 text-amber-800 font-bold text-[10px] px-3.5 py-1 rounded-sm uppercase tracking-wider flex items-center gap-1">
+                        🏆 Green Brigade Commander
+                      </span>
+                    ) : carbonSavedGrams >= 300 ? (
+                      <span className="bg-emerald-100 border border-emerald-300 text-emerald-800 font-bold text-[10px] px-3.5 py-1 rounded-sm uppercase tracking-wider flex items-center gap-1">
+                        🌿 Zero-Waste Firefighter
+                      </span>
+                    ) : (
+                      <span className="bg-stone-100 border border-stone-200 text-stone-500 font-bold text-[10px] px-3.5 py-1 rounded-sm uppercase tracking-wider">
+                        ⚓ Local Carbon Cadet
+                      </span>
+                    )}
+                  </div>
+
+                </div>
+
+              </div>
+            </section>
+
+            {/* ================= INTERACTIVE WIDGET 4: HISTORIC TIMELINE & RESTORATION STAGE COUNTDOWNS ================= */}
+            <section id="heritage-anchor" className="bg-white p-6 sm:p-8 border border-[#EEECE6] rounded-md shadow-3xs space-y-6">
+              
+              <div className="space-y-1 border-b border-[#EEECE6] pb-4">
+                <span className="text-[10px] uppercase tracking-widest text-[#8FB259] font-black">Interactive Feature 04</span>
+                <h3 className="font-serif text-2xl font-bold text-[#2F3A22]">
+                  Interactive Firehouse Restoration Timeline
+                </h3>
+                <p className="text-xs text-[#6D7762]">
+                  Stand in the footprints of heroic protectors. Activate the historic simulated alarms or step-by-step fermentation clocks below to sound Victorian heritage chimes.
+                </p>
+              </div>
+
+              {/* Vertical Timeline Deck */}
+              <div className="space-y-6 relative border-l-2 border-[#EBF3DD] ml-3 sm:ml-6 pl-4 sm:pl-8 py-2">
+                {HISTORIC_TIMELINE.map(evt => {
+                  const timer = activeTimers[evt.step];
+                  const hasTimer = evt.timerSec > 0;
+                  const isRunning = timer?.isRunning || false;
+                  const timeLeft = timer ? timer.timeLeft : evt.timerSec;
+                  const percentLeft = timer ? Math.round((timeLeft / evt.timerSec) * 100) : 100;
+
+                  return (
+                    <div key={evt.step} className="relative group space-y-2">
+                      
+                      {/* Floating Circle year bookmark */}
+                      <span className="absolute left-[-25px] sm:left-[-41px] top-1 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[#8FB259] flex items-center justify-center text-white text-[9px] font-black shadow-xs ring-4 ring-[#FDFCF9]">
+                        {evt.year.slice(2)}
+                      </span>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] font-bold text-[#8FB259] bg-[#EBF3DD] px-2 py-0.5 rounded-sm uppercase tracking-widest">Year {evt.year}</span>
+                          <h4 className="font-serif text-base font-extrabold text-[#2F3A22]">{evt.title}</h4>
+                        </div>
+
+                        {/* Interactive simulation timer actions */}
+                        {hasTimer && (
+                          <div className="flex items-center gap-2">
+                            {timeLeft === 0 ? (
+                              <span className="text-[10px] uppercase font-bold text-emerald-600 bg-emerald-50 border border-emerald-300 py-1 px-3 rounded-xs flex items-center gap-1.5 animate-pulse">
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Completed</span>
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handleToggleTimer(evt.step, evt.timerSec)}
+                                className={`text-[10px] uppercase font-black tracking-widest py-1.5 px-3 rounded-xs border transition-colors cursor-pointer flex items-center gap-1 ${isRunning ? 'bg-amber-600 border-amber-600 text-white hover:bg-amber-700' : 'bg-white border-[#D5D2C9] hover:bg-stone-50'}`}
+                              >
+                                {isRunning ? (
+                                  <>
+                                    <Clock className="w-3 h-3 animate-spin" />
+                                    <span>Pause ({timeLeft}s)</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Clock className="w-3 h-3" />
+                                    <span>{evt.timerLabel || 'Start Test'}</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+                            
+                            {timer && (
+                              <button
+                                onClick={() => handleResetTimer(evt.step)}
+                                className="text-[9px] uppercase hover:bg-stone-200 py-1 px-2 text-stone-500 rounded-sm cursor-pointer"
+                              >
+                                Reset
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-[#6D7762] leading-relaxed text-justify">{evt.description}</p>
+
+                      {/* Progress ticking line for simulated timer */}
+                      {hasTimer && timer && timeLeft > 0 && (
+                        <div className="w-full h-1 bg-stone-100 rounded-full overflow-hidden mt-1">
+                          <div 
+                            className="h-full bg-amber-500 transition-all duration-1000" 
+                            style={{ width: `${percentLeft}%` }}
+                          ></div>
+                        </div>
+                      )}
+
+                    </div>
+                  );
+                })}
+              </div>
+
+            </section>
+
+            {/* ================= INTERACTIVE WIDGET 5: MASTERCLASS TOURS & BOOKING ADMISSIONS SECTION ================= */}
+            <section ref={bookingSectionRef} className="bg-white p-6 sm:p-8 border border-[#EEECE6] rounded-md shadow-3xs space-y-6">
+              
+              <div className="space-y-1 border-b border-[#EEECE6] pb-4">
+                <span className="text-[10px] uppercase tracking-widest text-[#8FB259] font-black">Interactive Feature 05</span>
+                <h3 className="font-serif text-2xl font-bold text-[#2F3A22]">
+                  Admission ticket office & Masterclass bookings
+                </h3>
+                <p className="text-xs text-[#6D7762]">
+                  We hold weekly heritage tours and masterclasses. Secure your admittance pass instantly.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+                
+                {/* Custom input fields */}
+                <form onSubmit={handleBookTickets} className="md:col-span-5 space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-black text-[#6D7762]">Choose Masterclass / Tour:</label>
+                    <select 
+                      value={bookingType}
+                      onChange={e => setBookingType(e.target.value as any)}
+                      className="w-full bg-stone-50 border border-[#EEECE6] p-2 text-xs font-semibold outline-hidden rounded-xs focus:ring-1 focus:ring-[#8FB259]"
+                    >
+                      <option value="sourdough-class">Nellie Sourdough Baking Class (£45)</option>
+                      <option value="brewery-tasting">Hose Amber Brewery Flight Tasting (£25)</option>
+                      <option value="vault-tour">Victorian Horse Vault Heritage Tour (£10)</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-black text-[#6D7762]">Calendar Date:</label>
+                      <input 
+                        type="date" 
+                        value={bookingDate}
+                        onChange={e => setBookingDate(e.target.value)}
+                        className="w-full bg-stone-50 border border-[#EEECE6] p-2 text-xs outline-hidden rounded-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-black text-[#6D7762]">Admittance Count:</label>
+                      <input 
+                        type="number" 
+                        min="1" 
+                        max="8" 
+                        value={bookingTickets}
+                        onChange={e => setBookingTickets(parseInt(e.target.value) || 1)}
+                        className="w-full bg-stone-50 border border-[#EEECE6] p-2 text-xs outline-hidden rounded-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full bg-[#8FB259] hover:bg-[#7FA24A] text-white text-xs uppercase tracking-widest font-black py-3 rounded-xs transition-colors cursor-pointer text-center"
+                  >
+                    Generate Printable Admittance Ticket
+                  </button>
+                </form>
+
+                {/* Print Ready Slip showing receipt details */}
+                <div className="md:col-span-7 bg-[#FAF9F5] p-5 border-2 border-dashed border-[#D5D2C9] rounded-xs relative flex flex-col justify-between shadow-2xs">
+                  
+                  {confirmedBooking ? (
+                    <motion.div 
+                      initial={{ scale: 0.95, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="space-y-4"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-0.5">
+                          <span className="text-[8px] uppercase tracking-widest font-black text-[#8FB259]">Official Admittance Certificate</span>
+                          <h4 className="font-serif text-lg font-bold text-[#2F3A22]">
+                            {bookingType === 'sourdough-class' ? 'Nellie Sourdough Baking Class' : bookingType === 'brewery-tasting' ? 'Hose Amber Brewery Flight Tasting' : 'Victorian Horse Vault Heritage Tour'}
+                          </h4>
+                        </div>
+                        <span className="font-mono text-xs font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-sm">CONFIRMED</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div>
+                          <span className="block text-[8px] uppercase text-[#9CA590] font-black">TICKET ID SERIAL:</span>
+                          <strong className="font-mono font-semibold text-[#2F3A22]">{confirmedBooking.id}</strong>
+                        </div>
+                        <div>
+                          <span className="block text-[8px] uppercase text-[#9CA590] font-black">ADMISSIONS DATE:</span>
+                          <strong className="text-[#2F3A22]">{bookingDate}</strong>
+                        </div>
+                        <div>
+                          <span className="block text-[8px] uppercase text-[#9CA590] font-black">QUANTITY SECURED:</span>
+                          <strong className="text-[#2F3A22]">{bookingTickets} Seats</strong>
+                        </div>
+                        <div>
+                          <span className="block text-[8px] uppercase text-[#9CA590] font-black">TOTAL FEES CHARGED:</span>
+                          <strong className="text-sm font-black text-[#5C703C]">£{confirmedBooking.price}.00</strong>
+                        </div>
+                      </div>
+
+                      {/* Mock Barcode display inside ticket */}
+                      <div className="border-t border-[#EEECE6] pt-3 flex flex-col items-center space-y-1">
+                        <div className="w-full h-8 bg-black flex gap-[1px] items-stretch justify-center pl-1">
+                          {[...Array(38)].map((_, idx) => (
+                            <div 
+                              key={idx} 
+                              className="bg-white flex-1" 
+                              style={{ marginRight: idx % 3 === 0 ? '4px' : '0px', width: idx % 4 === 0 ? '2px' : '4px' }}
+                            ></div>
+                          ))}
+                        </div>
+                        <span className="font-mono text-[8px] text-[#9CA590] uppercase tracking-widest">Scan barcode on check-in entry</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="w-full border border-[#D5D2C9] hover:bg-stone-100 text-[#6D7762] hover:text-[#2F3A22] text-[10px] uppercase font-bold py-1.5 transition-colors cursor-pointer text-center rounded-xs"
+                      >
+                        Print Ticket Admittance
+                      </button>
+
+                    </motion.div>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
+                      <Ticket className="w-10 h-10 text-[#C1C9BA]" />
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-sm text-[#2F3A22]">Admittance voucher box</h4>
+                        <p className="text-xs text-[#9CA590] leading-relaxed max-w-sm">
+                          Configure your masterclass date and ticket size on the left, then click submit to authorize your custom printable zero-waste ticket pass!
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+
+              </div>
+
+            </section>
+
+            {/* ================= INTERACTIVE WIDGET 6: visitor REVIEWS AND RATING PERSISTENCE ================= */}
+            <section ref={reviewsSectionRef} className="bg-white p-6 sm:p-8 border border-[#EEECE6] rounded-md shadow-3xs space-y-6">
+              
+              <div className="border-b border-[#EEECE6] pb-4">
+                <span className="text-[10px] uppercase tracking-widest text-[#8FB259] font-black">Interactive Feature 06</span>
+                <h3 className="font-serif text-2xl font-bold text-[#2F3A22]">
+                  The Firehouse Guest Registry & Review Board
+                </h3>
+              </div>
+
+              {/* Review submit confirmation banner */}
+              {reviewSubmitSuccess && (
+                <div className="bg-emerald-50 border border-emerald-300 text-[#3B4A23] text-xs font-bold p-3.5 rounded-sm">
+                  ✓ Outstanding! Your visitor feedback on the Firehouse registry has been confirmed and average rating updated in real-time.
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+                
+                {/* Form to submit review */}
+                <form onSubmit={handleAddReview} className="md:col-span-5 bg-[#FAF9F5] p-5 border border-[#EEECE6] rounded-xs space-y-4 self-start">
+                  <h4 className="text-xs uppercase font-extrabold text-[#6D7762] tracking-wider">Leave Local Visitor Log</h4>
+                  
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-black text-[#6D7762]">Visitor Name</label>
+                    <input 
+                      required
+                      type="text" 
+                      placeholder="e.g. Douglas Henderson"
+                      value={newReviewAuthor}
+                      onChange={e => setNewReviewAuthor(e.target.value)}
+                      className="w-full bg-white text-xs border border-[#EEECE6] p-2.5 outline-hidden"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase font-black text-[#6D7762]">Rating Score</label>
+                      <select 
+                        value={newReviewRating}
+                        onChange={e => setNewReviewRating(parseInt(e.target.value))}
+                        className="w-full bg-white text-xs border border-[#EEECE6] p-2 outline-hidden font-bold"
+                      >
+                        <option value="5">⭐⭐⭐⭐⭐ 5</option>
+                        <option value="4">⭐⭐⭐⭐ 4</option>
+                        <option value="3">⭐⭐⭐ 3</option>
+                        <option value="2">⭐⭐ 2</option>
+                        <option value="1">⭐ 1</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase font-black text-[#6D7762]">Visit Area</label>
+                      <select 
+                        value={newReviewVisitType}
+                        onChange={e => setNewReviewVisitType(e.target.value as any)}
+                        className="w-full bg-white text-xs border border-[#EEECE6] p-2 outline-hidden font-semibold"
+                      >
+                        <option value="Bakery">Bakery</option>
+                        <option value="Brewery">Brewery</option>
+                        <option value="Heritage Tour">Heritage Tour</option>
+                        <option value="Dog Visitor">Dog Visitor</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-black text-[#6D7762]">Review thoughts & comments</label>
+                    <textarea 
+                      required
+                      rows={3}
+                      placeholder="Share your thoughts about the sourdough, craft ale drafts, carbon savings, or original horse vaults..."
+                      value={newReviewComment}
+                      onChange={e => setNewReviewComment(e.target.value)}
+                      className="w-full bg-white text-xs border border-[#EEECE6] p-2.5 outline-hidden resize-none"
+                    />
+                  </div>
+
+                  <button 
+                    type="submit"
+                    className="w-full bg-[#2F3A22] hover:bg-[#8FB259] text-white text-xs uppercase tracking-widest font-black py-2.5 rounded-xs transition-colors cursor-pointer"
+                  >
+                    Submit to Registry
+                  </button>
+                </form>
+
+                {/* List of guest logs */}
+                <div className="md:col-span-7 space-y-4 max-h-[460px] overflow-y-auto pr-1">
+                  {guestReviews.map(rev => (
+                    <div 
+                      key={rev.id} 
+                      className="p-4 bg-[#FAF9F5] border border-[#EEECE6] rounded-xs space-y-2.5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <strong className="text-sm font-extrabold text-[#2F3A22]">{rev.author}</strong>
+                          <span className="block text-[9px] text-[#9CA590] uppercase font-bold">{rev.date} • {rev.visitType} area visit</span>
+                        </div>
+                        <div className="flex items-center gap-0.5 text-amber-500">
+                          {[...Array(5)].map((_, starI) => (
+                            <Star 
+                              key={starI} 
+                              className={`w-3.5 h-3.5 ${starI < rev.rating ? 'fill-current text-yellow-500' : 'text-[#EEECE6]'}`} 
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-xs text-[#6D7762] leading-relaxed text-left">{rev.comment}</p>
+                    </div>
+                  ))}
+                </div>
+
+              </div>
+
+            </section>
+
+          </div>
+
+          {/* ================= COLUMN 3: RIGHT CREATOR PROFILE SIDEBAR PANEL (3 cols) ================= */}
+          <div className="lg:col-span-3 space-y-6">
+            
+            {/* The Founders Circular Card (Perfect circle layout match of screenshot) */}
+            <div className="bg-[#FAF9F5] p-6 border border-[#EEECE6] rounded-md shadow-3xs space-y-5 text-center">
+              
+              {/* Outer Circular Portrait with nice border */}
+              <div className="w-40 h-40 rounded-full overflow-hidden mx-auto border-3 border-white shadow-md ring-1 ring-[#EEECE6]">
+                <img 
+                  src={threeCreatorsImg} 
+                  alt="The Firehouse Founders" 
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[9px] bg-[#EBF3DD] text-[#3B4A23] font-black uppercase tracking-widest px-3 py-1 rounded-sm">MEET THE TRIO</span>
+                <h3 className="font-serif text-xl font-bold text-[#2F3A22] pt-1">
+                  The Firehouse Founders
+                </h3>
+              </div>
+
+              <p className="text-xs text-[#6D7762] leading-relaxed text-justify px-2 italic">
+                "United by a common love for sourdough, brewing and historical restoration, us 3 girls decided to embark on a journey to show you that a community bakery, dog-friendly pub and circle-economy loop can exist together in a historic 1903 Salford firehouse."
+              </p>
+
+              <div className="w-8 h-[1px] bg-[#EEECE6] mx-auto"></div>
+
+              {/* Founder Social circles */}
+              <div className="flex justify-center gap-3">
+                <a href="#ig" className="text-[#6D7762] hover:text-[#8FB259] transition-colors"><Instagram className="w-4 h-4" /></a>
+                <a href="#fb" className="text-[#6D7762] hover:text-[#8FB259] transition-colors"><Facebook className="w-4 h-4" /></a>
+                <a href="#mail" className="text-[#6D7762] hover:text-[#8FB259] transition-colors"><Mail className="w-4 h-4" /></a>
+              </div>
+            </div>
+
+            {/* Quick Facts Card */}
+            <div className="bg-white p-5 border border-[#EEECE6] rounded-md shadow-3xs space-y-4">
+              <h4 className="font-serif text-sm font-extrabold text-[#2F3A22] uppercase tracking-wider border-b border-[#F5F4F0] pb-2 text-left">
+                Historic Salford Facts
+              </h4>
+              <ul className="text-xs text-[#6D7762] space-y-3 pl-1.5 text-left">
+                <li className="flex items-start gap-2">
+                  <span className="text-[#8FB259] font-bold">1.</span>
+                  <span><strong>The Original Hose:</strong> Firefighters used horse-drawn water pumps before motor tenders arrived in 1910.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#8FB259] font-bold">2.</span>
+                  <span><strong>WWII High Watch:</strong> Spotters slept in the tower to keep watch for chemical blitz raids over Salford.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#8FB259] font-bold">3.</span>
+                  <span><strong>100% Circular:</strong> Spent grain from the copper brewing tanks goes straight to local baking ovens.</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Presets / AI Chatbot shortcut triggers */}
+            <div className="bg-white p-5 border border-[#EEECE6] rounded-md shadow-3xs space-y-3">
+              <span className="text-[10px] uppercase tracking-widest text-[#8FB259] font-black block text-left">Brewmaster Assistant</span>
+              <h4 className="font-serif text-sm font-extrabold text-[#2F3A22] text-left">
+                Ask a Heritage Question
+              </h4>
+              <div className="space-y-2">
+                {AI_CONCEPT_SHORTCUTS.map((sc, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleShortcutClicked(sc)}
+                    className="w-full text-left p-2.5 bg-[#FAF9F5] hover:bg-[#8FB259] hover:text-white transition-all text-[11px] text-[#6D7762] leading-relaxed rounded-xs border border-[#EEECE6] hover:border-[#8FB259] cursor-pointer"
+                  >
+                    {sc}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </main>
+
+      {/* ----------------- CORE AI CONVERSATIONAL ASSISTANT SLIDE-OUT DRAWER ----------------- */}
+      <AnimatePresence>
+        {isAiOpen && (
+          <>
+            {/* Background Backdrop Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAiOpen(false)}
+              className="fixed inset-0 bg-black z-50 cursor-pointer"
+            />
+
+            {/* Chat Slidedrawer Container (Slide-out from Right side) */}
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: '0%' }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+              className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-[#FDFCF9] shadow-2xl z-50 flex flex-col border-l border-[#EEECE6]"
+            >
+              
+              {/* Chat Drawer Header */}
+              <div className="p-4 bg-[#8FB259] text-white flex items-center justify-between shadow-xs">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-yellow-300 animate-pulse" />
+                  <div>
+                    <h3 className="font-serif text-base font-extrabold leading-none">Station AI Assistant</h3>
+                    <span className="text-[9px] uppercase tracking-widest text-emerald-100 font-bold">Firehouse Brewmaster & Historian</span>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsAiOpen(false)}
+                  className="p-1 rounded-full hover:bg-white/10 text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Conversation Messages area */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {chatMessages.map((msg, i) => (
+                  <div 
+                    key={i} 
+                    className={`flex flex-col max-w-[85%] ${msg.sender === 'user' ? 'ml-auto items-end animate-fade-in' : 'mr-auto items-start animate-fade-in'}`}
+                  >
+                    <span className="text-[8px] uppercase tracking-wider text-[#9CA590] mb-0.5 font-bold">
+                      {msg.sender === 'user' ? 'Community Guest' : 'Brewmaster AI'}
+                    </span>
+                    <div 
+                      className={`p-3 rounded-lg text-xs leading-relaxed text-justify ${msg.sender === 'user' ? 'bg-[#8FB259] text-white' : 'bg-white border border-[#EEECE6] text-[#2F3A22] shadow-3xs'}`}
+                    >
+                      {msg.text}
+                    </div>
+                  </div>
+                ))}
+
+                {isAiLoading && (
+                  <div className="flex flex-col items-start max-w-[85%] mr-auto">
+                    <span className="text-[8px] uppercase tracking-widest text-[#9CA590] mb-0.5 font-bold">Brewmaster AI</span>
+                    <div className="p-3 rounded-lg bg-white border border-[#EEECE6] text-[#6D7762] text-xs italic flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5 animate-spin text-[#8FB259]" />
+                      <span>Nellie engine feeding coal... baking response...</span>
+                    </div>
+                  </div>
+                )}
+                
+                <div ref={chatBottomRef} />
+              </div>
+
+              {/* Preset clickable quick assists inside prompt */}
+              <div className="p-3 bg-[#FAF9F5] border-t border-[#F0EFEB] flex gap-1.5 overflow-x-auto select-none no-scrollbar">
+                <button 
+                  onClick={() => setChatInput("Tell me more about the 1903 fire station horses.")}
+                  className="flex-none text-[10px] bg-white hover:bg-[#8FB259] hover:text-white font-bold py-1 px-2.5 rounded-sm border border-[#EEECE6] hover:border-[#8FB259] text-[#6D7762]"
+                >
+                  🐎 1903 Horses
+                </button>
+                <button 
+                  onClick={() => setChatInput("How can I baked a loaf with spent grains?")}
+                  className="flex-none text-[10px] bg-white hover:bg-[#8FB259] hover:text-white font-bold py-1 px-2.5 rounded-sm border border-[#EEECE6] hover:border-[#8FB259] text-[#6D7762]"
+                >
+                  🍞 Sourdough formula
+                </button>
+                <button 
+                  onClick={() => setChatInput("Where does Nellie yeast starter live?")}
+                  className="flex-none text-[10px] bg-white hover:bg-[#8FB259] hover:text-white font-bold py-1 px-2.5 rounded-sm border border-[#EEECE6] hover:border-[#8FB259] text-[#6D7762]"
+                >
+                  🧪 Yeast Culture
+                </button>
+              </div>
+
+              {/* Chat Input message form */}
+              <form onSubmit={handleChatSubmit} className="p-3 border-t border-[#EEECE6] bg-white flex gap-2">
+                <input 
+                  type="text"
+                  placeholder="Ask a heritage or baking question..."
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  className="flex-1 bg-stone-50 text-xs border border-[#EEECE6] p-2.5 outline-hidden focus:bg-white focus:ring-1 focus:ring-[#8FB259]"
+                />
+                <button 
+                  type="submit" 
+                  className="bg-[#2F3A22] hover:bg-[#8FB259] text-white p-2.5 rounded-xs transition-colors flex items-center justify-center cursor-pointer"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
+
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Floating share/action nodes button at the bottom-right of viewport (Exact match of screenshot) */}
+      <button 
+        onClick={() => { setIsAiOpen(true); triggerChimeSound(); }}
+        className="fixed bottom-4 right-4 z-40 w-11 h-11 bg-black hover:bg-[#8FB259] text-white rounded-full flex items-center justify-center hover:scale-105 transition-all shadow-md cursor-pointer cursor-interactive"
+        title="Quick AI Assistant Summoner"
+        id="floating-share-button"
+      >
+        <Share2 className="w-5 h-5" />
+      </button>
+
+    </div>
+  );
+}
